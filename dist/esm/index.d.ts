@@ -1,4 +1,8 @@
 declare type Environment = 'test' | 'sandbox' | 'live';
+declare type FieldName = 'card-name' | 'card-number' | 'card-security-code' | 'card-expiration-date';
+declare type CSSFieldSelector<F extends FieldName = FieldName> = {
+    [f in F]: string;
+};
 declare type CreditCard = {
     cvc: string;
     name: string;
@@ -13,23 +17,20 @@ export declare enum InstallmentFrequency {
 declare type Payload = {
     quoteId: string;
     installmentFrequency: InstallmentFrequency;
-    payment: CreditCard & {
+    creditCard: CreditCard & {
         method: 'vgs';
     };
 };
-declare type FieldName = 'card-name' | 'card-number' | 'card-security-code' | 'card-expiration-date';
-declare type CSSFieldSelector<F extends FieldName = FieldName> = {
-    [f in F]: string;
-};
-declare type GatewayOptions = {
+declare type CollectOptions = {
     environment: Environment;
     token: string;
     fields: CSSFieldSelector;
     css?: Record<string, string>;
 };
-declare function brizaPaymentGateway(options: GatewayOptions): Promise<{
-    onReady: () => Promise<unknown[]>;
+declare type CollectResponse = {
+    onReady: () => Promise<unknown>;
     reset: () => void;
     pay: (quoteId: string, installmentFrequency: InstallmentFrequency) => Promise<Payload>;
-}>;
-export { brizaPaymentGateway };
+};
+declare function brizaCollect(options: CollectOptions): Promise<CollectResponse>;
+export { brizaCollect };

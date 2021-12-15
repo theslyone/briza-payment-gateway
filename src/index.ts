@@ -1,35 +1,21 @@
-import { loadVGSCollect } from '@vgs/collect-js';
+import { loadVGSCollect } from '@vgs/collect-js'
 
 const vgsVersion = '2.11.0'
 
 type Environment = 'test' | 'sandbox' | 'live'
 
 const vaults: Record<Environment, string> = {
-  test: 'tntep6suu1c',  // 'tntnwaij64c',
-  'sandbox': 'tntwdbsm7ec',
-  'live': 'tntynnmpjnc'
+  test: 'tntep6suu1c', // 'tntnwaij64c',
+  sandbox: 'tntwdbsm7ec',
+  live: 'tntynnmpjnc',
 }
 
-type CreditCard = {
-  cvc: string,
-  name: string,
-  number: string,
-  expiry: string,
-  cardType: string
-}
+type FieldName =
+  | 'card-name'
+  | 'card-number'
+  | 'card-security-code'
+  | 'card-expiration-date'
 
-export enum InstallmentFrequency {
-  Monthly = 'monthly',
-  Yearly = 'yearly'
-}
-
-type Payload = {
-  quoteId: string
-  installmentFrequency: InstallmentFrequency
-  payment: CreditCard & { method: 'vgs' }
-}
-
-type FieldName = 'card-name' | 'card-number' | 'card-security-code' | 'card-expiration-date'
 type Field = {
   name: FieldName
   type: 'text' | FieldName
@@ -37,6 +23,7 @@ type Field = {
   validations: string[]
   autoComplete: string
   showCardIcon?: Record<string, string>
+  serializers?: unknown[]
 }
 
 type CSSFieldSelector<F extends FieldName = FieldName> = {
@@ -44,31 +31,72 @@ type CSSFieldSelector<F extends FieldName = FieldName> = {
 }
 
 type VGSCollect = {
-  init: (callback?: (state: Record<FieldName, Record<string, unknown>>) => void) => VgsForm
+  init: (
+    callback?: (state: Record<FieldName, Record<string, unknown>>) => void
+  ) => VgsForm
+}
+
+type CreditCard = {
+  cvc: string
+  name: string
+  number: string
+  expiry: string
+  cardType: string
+}
+
+export enum InstallmentFrequency {
+  Monthly = 'monthly',
+  Yearly = 'yearly',
+}
+
+type Payload = {
+  quoteId: string
+  installmentFrequency: InstallmentFrequency
+  creditCard: CreditCard & { method: 'vgs' }
 }
 
 type SuccessCallback = (status: number, data: Payload) => void
 type ErrorCallback = (errors: Record<string, unknown>) => void
 
 type VgsForm = {
-  field: (selector: string, props: Record<string, unknown>) => { promise: Promise<unknown> }
+  SERIALIZERS: {
+    separate: (data: Record<string, string>) => void
+  }
+  field: (
+    selector: string,
+    props: Record<string, unknown>
+  ) => { promise: Promise<unknown> }
   reset: () => void
-  submit: (path: string, options: unknown, successCallback: SuccessCallback, errorCallback: ErrorCallback) => Promise<VgsForm>
+  submit: (
+    path: string,
+    options: unknown,
+    successCallback: SuccessCallback,
+    errorCallback: ErrorCallback
+  ) => Promise<VgsForm>
 }
 
-type GatewayOptions = {
+type CollectOptions = {
   environment: Environment
-  token: string
+  apiKeyOrToken: string
   fields: CSSFieldSelector
   css?: Record<string, string>
 }
 
-async function brizaPaymentGateway(options: GatewayOptions) {
-  const { environment, fields, css } = options
+type CollectResponse = {
+  onReady: () => Promise<unknown>
+  reset: () => void
+  pay: (
+    quoteId: string,
+    installmentFrequency: InstallmentFrequency
+  ) => Promise<Payload>
+}
+
+async function brizaCollect(options: CollectOptions): Promise<CollectResponse> {
+  const { environment, apiKeyOrToken, fields, css } = options
   const collect = (await loadVGSCollect({
     vaultId: vaults[environment],
     environment: environment === 'live' ? 'live' : 'sandbox',
-    version: vgsVersion
+    version: vgsVersion,
   })) as VGSCollect
 
   let cardType = ''
@@ -83,86 +111,127 @@ async function brizaPaymentGateway(options: GatewayOptions) {
       name: 'card-name',
       placeholder: 'Credit Card Name',
       validations: ['required'],
-      autoComplete: "cc-name",
+      autoComplete: 'cc-name',
     },
     {
       type: 'card-number',
       name: 'card-number',
       placeholder: 'Credit Card Number',
       validations: ['required', 'validCardNumber'],
-      autoComplete: "cc-number",
+      autoComplete: 'cc-number',
       showCardIcon: {
-        width: "35px",
-        height: "22px",
-      }
+        width: '35px',
+        height: '22px',
+      },
     },
     {
       type: 'card-security-code',
       name: 'card-security-code',
       placeholder: 'CVC',
       validations: ['required', 'validCardSecurityCode'],
-      autoComplete: "cc-csc",
+      autoComplete: 'cc-csc',
       showCardIcon: {
-        width: "35px",
-        height: "22px",
-      }
+        width: '35px',
+        height: '22px',
+      },
     },
     {
       type: 'card-expiration-date',
       name: 'card-expiration-date',
       placeholder: 'MM/YY',
       validations: ['required', 'validCardExpirationDate'],
-      autoComplete: "cc-exp"
-    }
+      autoComplete: 'cc-exp',
+      serializers: [
+        vgsForm.SERIALIZERS.separate({
+          monthName: '<month>',
+          yearName: '<year>',
+        }),
+      ],
+    },
   ]
 
   const fieldStates: Promise<unknown>[] = []
 
-  const requiredFields = fieldConfigurations.map(field => field.name)
+  const requiredFields = fieldConfigurations.map((field) => field.name)
 
+  // check authorization mode is one of ApiKey or XToken
+  if (!apiKeyOrToken.match(/^(sk-|.*\.t-).+$/)) {
+    throw new Error(
+      `invalid api key or token. Value must conform with Briza's ApiKey or XToken authorization scheme`
+    )
+  }
+
+  // check all required fields are setup properly
   if (
-    Object.keys(fields).length !== requiredFields.length
-    ||
-    !(Object.keys(fields) as FieldName[]).every(field => requiredFields.includes(field))) {
+    Object.keys(fields).length !== requiredFields.length ||
+    !(Object.keys(fields) as FieldName[]).every((field) =>
+      requiredFields.includes(field)
+    )
+  ) {
     throw new Error(`all fields in ${requiredFields.join(', ')} are required`)
   }
 
   for (const field of fieldConfigurations) {
-    fieldStates.push(vgsForm.field(fields[field.name], {
-      ...field,
-      css
-    }).promise)
+    fieldStates.push(
+      vgsForm.field(fields[field.name], {
+        ...field,
+        css,
+      }).promise
+    )
   }
 
   return {
     onReady: async () => Promise.all(fieldStates),
     reset: () => vgsForm.reset(),
-    pay: async (quoteId: string, installmentFrequency: InstallmentFrequency) => {
+    pay: async (
+      quoteId: string,
+      installmentFrequency: InstallmentFrequency
+    ) => {
+      const authorization = apiKeyOrToken.startsWith('sk-')
+        ? `ApiKey ${apiKeyOrToken}`
+        : `XToken ${apiKeyOrToken}`
+
       return new Promise<Payload>((resolve, reject) => {
         vgsForm.submit(
           '/post',
           {
+            method: 'POST',
+            headers: {
+              Authorization: authorization,
+              'content-type': 'application/json',
+            },
             data: (formValues: Record<string, unknown>) => {
+              console.log('formValues', formValues)
               return {
                 quoteId,
                 installmentFrequency,
-                payment: {
+                paymentInfo: {
                   name: formValues['card-name'],
-                  cardType,
                   number: formValues['card-number'],
                   expiry: formValues['card-expiration-date'],
                   cvc: formValues['card-security-code'],
-                  method: 'vgs'
-                }
+                  cardType,
+                  method: 'vgs',
+                  email: '',
+                  address: {
+                    street: '',
+                    secondary: '',
+                    city: '',
+                    region: '',
+                    postalCode: '',
+                    county: '',
+                    country: 'US',
+                  },
+                },
               }
-            }
+            },
           },
           (_, data) => resolve(data),
           reject
         )
       })
-    }
+    },
   }
 }
 
-export { brizaPaymentGateway }
+export { brizaCollect }
