@@ -48,4 +48,4 @@ brizaCollect({
 
 ### Keywords
 
-[briza]() [payment]() [bind]()
+[briza-api](https://briza-api.redoc.ly/), [bind](https://briza-api.redoc.ly/#operation/patchPolicyhttps://briza-api.redoc.ly/)
