@@ -157,29 +157,27 @@
         await gateway.onReady()
         submitButton.removeAttribute('disabled')
 
-        document.getElementById('cc-form').addEventListener(
-          'submit',
-          function (e) {
+        document
+          .getElementById('cc-form')
+          .addEventListener('submit', function (e) {
             e.preventDefault()
             gateway
-              .submit()
+              .pay('quote-id', 'yearly')
               .then((data) => {
-                console.log(data)
                 document.getElementById('result').innerHTML = JSON.stringify(
-                  data,
+                  data.json,
                   null,
                   4
                 )
               })
               .catch((errors) => {
-                console.log(errors)
-                document.getElementById('result').innerHTML = errors
+                document.getElementById('result').innerHTML = JSON.stringify(
+                  errors,
+                  null,
+                  4
+                )
               })
-          },
-          function (errors) {
-            document.getElementById('result').innerHTML = errors
-          }
-        )
+          })
       })
     </script>
   </body>

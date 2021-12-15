@@ -1,103 +1,102 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.brizaPaymentGateway = void 0;
+exports.brizaPaymentGateway = exports.InstallmentFrequency = void 0;
 const collect_js_1 = require("@vgs/collect-js");
 const vgsVersion = '2.11.0';
-const defaultOptions = {
-    environment: 'sandbox',
-    style: {},
-};
-const defaultStyle = {
-    background: '#FFFFFF',
-    boxSizing: 'border-box',
-    height: '3.375rem',
-    fontSize: '1.25rem',
-    lineHeight: '1.688rem',
-    borderWidth: '1px',
-    borderRadius: '4px',
-    padding: '0px 16px',
-    '&:focus': {
-        border: '2px solid #222222',
-        padding: '0 15px'
-    },
-    '&:hover': {
-        border: '2px solid #222222',
-        padding: '0 15px'
-    },
-    '&::placeholder': {
-        color: '#454F5B'
-    },
-    border: '1px solid #222222'
-};
 const vaults = {
-    test: 'tntnwaij64c',
+    test: 'tntep6suu1c',
     'sandbox': 'tntwdbsm7ec',
     'live': 'tntynnmpjnc'
 };
-async function brizaPaymentGateway(options = defaultOptions) {
-    const { environment, fields, style: customStyle } = options;
+var InstallmentFrequency;
+(function (InstallmentFrequency) {
+    InstallmentFrequency["Monthly"] = "monthly";
+    InstallmentFrequency["Yearly"] = "yearly";
+})(InstallmentFrequency = exports.InstallmentFrequency || (exports.InstallmentFrequency = {}));
+async function brizaPaymentGateway(options) {
+    const { environment, fields, css } = options;
     const collect = (await (0, collect_js_1.loadVGSCollect)({
         vaultId: vaults[environment],
         environment: environment === 'live' ? 'live' : 'sandbox',
         version: vgsVersion
     }));
-    const styles = {
-        // ...defaultStyle,
-        ...customStyle
-    };
-    const vgsForm = collect.init();
-    const fieldStates = [];
-    if (fields && Object.keys(fields).length > 0) {
-        const cardName = vgsForm.field(fields['card-name'], {
+    let cardType = '';
+    const vgsForm = collect.init((state) => {
+        var _a, _b;
+        cardType = `${(_b = (_a = state === null || state === void 0 ? void 0 : state['card-number']) === null || _a === void 0 ? void 0 : _a.cardType) !== null && _b !== void 0 ? _b : ''}`.toLocaleLowerCase();
+    });
+    const fieldConfigurations = [
+        {
             type: 'text',
-            name: 'cardName',
+            name: 'card-name',
             placeholder: 'Credit Card Name',
             validations: ['required'],
             autoComplete: "cc-name",
-            css: styles
-        });
-        fieldStates.push(cardName.promise);
-        const cardNumber = vgsForm.field(fields['card-number'], {
+        },
+        {
             type: 'card-number',
-            name: 'cardNumber',
+            name: 'card-number',
             placeholder: 'Credit Card Number',
             validations: ['required', 'validCardNumber'],
             autoComplete: "cc-number",
             showCardIcon: {
                 width: "35px",
                 height: "22px",
-            },
-            css: styles
-        });
-        fieldStates.push(cardNumber.promise);
-        const cardSecurityCode = vgsForm.field(fields['card-security-code'], {
+            }
+        },
+        {
             type: 'card-security-code',
-            name: 'cardCvc',
+            name: 'card-security-code',
             placeholder: 'CVC',
             validations: ['required', 'validCardSecurityCode'],
             autoComplete: "cc-csc",
             showCardIcon: {
                 width: "35px",
                 height: "22px",
-            },
-            css: styles
-        });
-        fieldStates.push(cardSecurityCode.promise);
-        const cardExpirationDate = vgsForm.field(fields['card-expiration-date'], {
+            }
+        },
+        {
             type: 'card-expiration-date',
-            name: 'cardExpirationDate',
+            name: 'card-expiration-date',
             placeholder: 'MM/YY',
             validations: ['required', 'validCardExpirationDate'],
-            autoComplete: "cc-exp",
-            css: styles
-        });
-        fieldStates.push(cardExpirationDate.promise);
+            autoComplete: "cc-exp"
+        }
+    ];
+    const fieldStates = [];
+    const requiredFields = fieldConfigurations.map(field => field.name);
+    if (Object.keys(fields).length !== requiredFields.length
+        ||
+            !Object.keys(fields).every(field => requiredFields.includes(field))) {
+        throw new Error(`all fields in ${requiredFields.join(', ')} are required`);
+    }
+    for (const field of fieldConfigurations) {
+        fieldStates.push(vgsForm.field(fields[field.name], {
+            ...field,
+            css
+        }).promise);
     }
     return {
         onReady: async () => Promise.all(fieldStates),
-        submit: async () => {
+        reset: () => vgsForm.reset(),
+        pay: async (quoteId, installmentFrequency) => {
             return new Promise((resolve, reject) => {
-                vgsForm.submit('/api/v2/echo/payment-card', {}, (_, data) => resolve(data), reject);
+                vgsForm.submit('/post', {
+                    data: (formValues) => {
+                        return {
+                            quoteId,
+                            installmentFrequency,
+                            payment: {
+                                name: formValues['card-name'],
+                                cardType,
+                                number: formValues['card-number'],
+                                expiry: formValues['card-expiration-date'],
+                                cvc: formValues['card-security-code'],
+                                method: 'vgs'
+                            }
+                        };
+                    }
+                }, (_, data) => resolve(data), reject);
             });
         }
     };
