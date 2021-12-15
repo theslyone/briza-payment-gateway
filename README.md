@@ -6,6 +6,9 @@ A VGS wrapper for Briza payment processing.
 
 This project provides an easy way to integrate Briza's payment processing without the need to worry about PCI compliance. Briza enforces a high level of data security by ensuring all sensitive payment information are redacted and securely proxied to third party payment processors.
 
+
+## Demo
+
 ![briza-vgs](https://user-images.githubusercontent.com/15334332/146257386-75b38782-9bde-404e-8f63-b0070e1cfb9d.gif)
 
 ## Getting Started
