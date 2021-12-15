@@ -11,7 +11,7 @@ export var InstallmentFrequency;
     InstallmentFrequency["Yearly"] = "yearly";
 })(InstallmentFrequency || (InstallmentFrequency = {}));
 async function brizaCollect(options) {
-    const { environment, fields, css } = options;
+    const { environment, apiKeyOrToken, fields, css } = options;
     const collect = (await loadVGSCollect({
         vaultId: vaults[environment],
         environment: environment === 'live' ? 'live' : 'sandbox',
@@ -60,14 +60,19 @@ async function brizaCollect(options) {
             autoComplete: 'cc-exp',
             serializers: [
                 vgsForm.SERIALIZERS.separate({
-                    monthName: '<month>',
-                    yearName: '<year>',
+                    monthName: 'month',
+                    yearName: 'year',
                 }),
             ],
         },
     ];
     const fieldStates = [];
     const requiredFields = fieldConfigurations.map((field) => field.name);
+    // check authorization mode is one of ApiKey or XToken
+    if (!apiKeyOrToken.match(/^(sk-|.*\.t-).+$/)) {
+        throw new Error(`invalid api key or token. Value must conform with Briza's ApiKey or XToken authorization scheme`);
+    }
+    // check all required fields are setup properly
     if (Object.keys(fields).length !== requiredFields.length ||
         !Object.keys(fields).every((field) => requiredFields.includes(field))) {
         throw new Error(`all fields in ${requiredFields.join(', ')} are required`);
@@ -82,11 +87,14 @@ async function brizaCollect(options) {
         onReady: async () => Promise.all(fieldStates),
         reset: () => vgsForm.reset(),
         pay: async (quoteId, installmentFrequency) => {
+            const authorization = apiKeyOrToken.startsWith('sk-')
+                ? `ApiKey ${apiKeyOrToken}`
+                : `XToken ${apiKeyOrToken}`;
             return new Promise((resolve, reject) => {
                 vgsForm.submit('/post', {
                     method: 'POST',
                     headers: {
-                        Authorization: 'ApiKey sk-xxxxxx-xxxxxx-xxxxxx-xxxxxx',
+                        Authorization: authorization,
                         'content-type': 'application/json',
                     },
                     data: (formValues) => {

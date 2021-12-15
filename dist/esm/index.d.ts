@@ -23,7 +23,7 @@ declare type Payload = {
 };
 declare type CollectOptions = {
     environment: Environment;
-    token: string;
+    apiKeyOrToken: string;
     fields: CSSFieldSelector;
     css?: Record<string, string>;
 };

@@ -131,10 +131,10 @@
           </div>
           <div class="alert alert-warning">
             <h5 class="text-center">Response</h5>
-            <pre id="result">
-          Submit a form to see result.
-        </pre
-            >
+            <h6 class="text-center">Header</h>
+            <pre id="headers" style="text-align: initial;"></pre>
+            <h6 class="text-center">Payload</h>
+            <pre id="result" style="text-align: initial;"></pre>
           </div>
         </div>
       </div>
@@ -166,6 +166,11 @@
             try {
               const result = await gateway.pay('quote-id', 'yearly')
               console.log(result)
+              document.getElementById('headers').innerHTML = JSON.stringify(
+                result.headers,
+                null,
+                4
+              )
               document.getElementById('result').innerHTML = JSON.stringify(
                 result.json,
                 null,

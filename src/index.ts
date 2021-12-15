@@ -143,8 +143,8 @@ async function brizaCollect(options: CollectOptions): Promise<CollectResponse> {
       autoComplete: 'cc-exp',
       serializers: [
         vgsForm.SERIALIZERS.separate({
-          monthName: '<month>',
-          yearName: '<year>',
+          monthName: 'month',
+          yearName: 'year',
         }),
       ],
     },
